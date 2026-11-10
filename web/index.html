@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>ESP32 Player</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 400px;
+            margin: 40px auto;
+        }
+
+        .card {
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .stale {
+            opacity: 0.4;
+        }
+
+        .skeleton {
+            background: #ddd;
+            color: transparent;
+            border-radius: 4px;
+        }
+
+        #status {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>ESP32 Music Player</h2>
+    <div id="card" class="card skeleton">
+        <p id="status">Waiting for device...</p>
+        <p>Song: <span id="song">----</span></p>
+        <p>Battery: <span id="battery">--</span>%</p>
+        <p>Position: <span id="position">--</span> s</p>
+    </div>
+    <div style="margin-top:16px">
+        <button onclick="cmd('prev')">⏮</button>
+        <button onclick="cmd('play')">▶</button>
+        <button onclick="cmd('pause')">⏸</button>
+        <button onclick="cmd('next')">⏭</button>
+    </div>
+    <label>Volume
+        <input type="range" min="0" max="20" value="10" onchange="cmd('set_volume', Number(this.value))">
+    </label>
+    <p id="cmdstatus"></p>
+    <script>
+        const card = document.getElementById("card");
+        const status = document.getElementById("status");
+
+        async function cmd(action, value = 0) {
+            const out = document.getElementById("cmdstatus");
+            out.textContent = "sending " + action + "...";
+            try {
+                const res = await fetch("/api/command", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action, value }),
+                });
+                out.textContent = res.ok ? "✓ " + action : "✗ " + action + ": " + (await res.text());
+            } catch (e) {
+                out.textContent = "✗ server unreachable";
+            }
+        }
+
+        function render(data) {
+            if (data.state === null) {
+                card.className = "card skeleton";
+                status.textContent = data.online
+                    ? "Connected, waiting for data..." : "Waiting for device...";
+                return;
+            }
+            document.getElementById("song").textContent = data.state.song;
+            document.getElementById("battery").textContent = data.state.battery_pct;
+            document.getElementById("position").textContent = data.state.position_s;
+            status.textContent = data.online ? "Connected" : "Disconnected";
+            card.className = data.online ? "card" : "card stale";
+        }
+
+        function connect() {
+            const proto = location.protocol === "https:" ? "wss" : "ws";
+            const ws = new WebSocket(proto + "://" + location.host + "/ws/browser");
+            ws.onmessage = (e) => render(JSON.parse(e.data));
+            ws.onclose = () => {
+                status.textContent = "Server unreachable, retrying...";
+                card.className = "card stale";
+                setTimeout(connect, 2000);
+            };
+        }
+        connect();
+    </script>
+</body>
+
+</html>
