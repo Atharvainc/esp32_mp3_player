@@ -1,2 +1,5 @@
 *.exe
 *.o
+data/
+*.mp3
+*.mp4

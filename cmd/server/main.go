@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -84,7 +85,7 @@ var (
 
 var (
 	errDeviceOffline = errors.New("device offline")
-	errDeviceBusy    = errors.New("Device busy, please wait")
+	errDeviceBusy    = errors.New("device busy, please wait")
 	errTimeout       = errors.New("unresponsive device")
 )
 
@@ -379,6 +380,22 @@ func commandHandler(w http.ResponseWriter, r *http.Request) {
 
 // main
 func main() {
+	if err := os.MkdirAll("data", 0o755); err != nil {
+		log.Fatal(err)
+	}
+	if err := openDB("data/archive.db"); err != nil {
+		log.Fatal(err)
+	}
+	for _, dir := range []string{songsDir, tmpDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Fatal(err)
+		}
+	}
+	http.HandleFunc("GET /api/playlists", listPlaylistsHandler)
+	http.HandleFunc("POST /api/playlists", createPlaylistHandler)
+	http.HandleFunc("PUT /api/songs/{id}/playlist", setSongPlaylistHandler)
+	http.HandleFunc("/api/upload", uploadHandler)
+	http.HandleFunc("/api/songs", songsHandler)
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/time", timeHandler)
 	http.HandleFunc("/ws/device", deviceWS)
